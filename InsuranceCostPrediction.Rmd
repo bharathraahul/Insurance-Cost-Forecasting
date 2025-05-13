@@ -1,0 +1,534 @@
+---
+title: "Insurance Forecast for a Medical Cost Personal Datasets"
+date: "2025-04-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+>>Source:  https://www.kaggle.com/datasets/mirichoi0218/insurance
+
+
+
+```
+install.packages("tidyverse")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+library(tidyverse)
+library(MASS)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+insurance = read.csv(url("https://raw.githubusercontent.com/stedy/Machine-Learning-with-R-datasets/refs/heads/master/insurance.csv"))
+
+```
+
+
+```{r}
+
+# Data Preprocessing
+
+# Check structure and summary
+str(insurance)
+summary(insurance)
+
+# Check for missing values
+cat("Missing Values in Each Column:\n")
+print(colSums(is.na(insurance)))
+
+#categorical variables are factors
+insurance$sex <- as.factor(insurance$sex)
+insurance$smoker <- as.factor(insurance$smoker)
+insurance$region <- as.factor(insurance$region)
+
+```
+
+
+```{r}
+bmi_category <- cut(insurance$bmi,
+                             breaks = c(0, 18.5, 25, 30, Inf),
+                             labels = c("Underweight", "Normal", "Overweight", "Obese"))
+age_group <- cut(insurance$age,
+                           breaks = c(0, 20, 30, 40, 50, 60, Inf),
+                           labels = c("0–20", "21–30", "31–40", "41–50", "51–60", "61+"))
+
+```
+
+
+```{r}
+library(dplyr) 
+glimpse(insurance)
+```
+
+
+>> Histogram of Smoker and non-smoker
+
+```{r}
+table(insurance$smoker)
+smoker_age <- insurance$age[insurance$smoker == "yes"]
+nonsmoker_age <- insurance$age[insurance$smoker == "no"]
+
+
+par(mfrow = c(1, 2))
+
+hist(nonsmoker_age, 
+     main = "Non-Smokers by Age", 
+     xlab = "Age", 
+     col = "green", 
+     border = "white",
+     breaks = 5)
+
+hist(smoker_age, 
+     main = "Smokers by Age", 
+     xlab = "Age", 
+     col = "red", 
+     border = "white",
+     breaks = 5)
+
+```
+```{r}
+barplot(table(insurance$sex),
+        main = "Count by Sex",
+        xlab = "Sex",
+        ylab = "Frequency",
+        col = c("blue", "red"),
+        ylim = c(0,700))
+```
+>>Overlay Histogram
+
+```{r}
+ggplot(data = insurance, aes(x= charges))+
+  geom_histogram(aes(fill = sex))
+```
+
+>>Distribution of Insurance Charges
+
+```{r}
+ggplot(insurance, aes(x = charges)) +
+  geom_histogram(binwidth = 2000, fill = "blue", color = "black") +
+  labs(title = "Distribution of Insurance Charges",
+       x = "Charges", y = "Count") +
+  scale_x_continuous(limits = c(0, 60000), breaks = seq(5000, 60000, 5000)) +
+  scale_y_continuous(limits = c(0, 150), breaks = seq(0, 200, 25))
+```
+
+
+
+```{r}
+ggplot(insurance, aes(x = smoker, y = charges, fill = smoker)) +
+  geom_boxplot() +
+  theme_minimal() +
+  ggtitle("Insurance Charges by Smoking Status")
+```
+
+```{r}
+ggplot(insurance, aes(x = sex, y = charges, fill = sex)) +
+  geom_boxplot() +
+  theme_minimal() +
+  ggtitle("Insurance Charges by Male/Female")
+```
+
+
+
+>>Boxplot of different regions
+
+```{r}
+ggplot(data = insurance, mapping = aes(x = region, y = charges)) +
+  geom_boxplot()+ ggtitle("Boxplot of Different regions")
+```
+```{r}
+ggplot(insurance, aes(x = charges, fill = smoker)) +
+  geom_histogram(alpha = 0.5, position = "identity", binwidth = 2000) +
+  labs(title = "Overlayed Histogram of Charges by Smoking Status",
+       x = "Charges", y = "Count") +
+  scale_fill_manual(values = c("green", "red")) +
+  theme_minimal()
+```
+ >>Charges vs BMI (colored by smoker)
+
+```{r}
+ggplot(insurance, aes(x = bmi, y = charges, color = smoker)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  theme_minimal() +
+  ggtitle("Charges vs BMI colored by Smoking Status")
+
+```
+
+
+```{r}
+ggplot(insurance, aes(x = bmi_category, y = charges)) +
+  geom_boxplot(fill = "lightgreen") +
+  labs(title = "Insurance Charges by BMI Category",
+       x = "BMI Category",
+       y = "Charges") +
+  theme_minimal()
+
+ggplot(insurance, aes(x = "", y = bmi)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = "Boxplot of BMI", y = "BMI") +
+  theme_minimal()
+```
+
+
+
+```{r}
+ggplot(insurance, aes(x = region, fill = smoker)) +
+  geom_bar(position = "dodge") +
+  labs(title = "Number of Smokers and Non-Smokers by Region",
+       x = "Region",
+       y = "Count",
+       fill = "Smoker Status") +
+  theme_minimal() +
+  scale_fill_manual(values = c("no" = "#00BFC4", "yes" = "#F8766D"))
+  
+
+```
+
+```{r}
+ggplot(insurance, aes(x = bmi_category, y = children, fill = smoker)) +
+  geom_boxplot() +
+  labs(title = "Children Count by BMI Group and Smoking Status",
+       x = "BMI Group", y = "Number of Children") +
+  theme_minimal()
+```
+
+
+
+>> Null hypothesis (H₀): Variance of smoker = variance of non smoker
+
+>>Alternate Hypothesos H1 : Variance of smoker > variance of non smoker
+
+```{r}
+smoker_charges <- insurance$charges[insurance$smoker == "yes"]
+nonsmoker_charges <- insurance$charges[insurance$smoker == "no"]
+var.test(smoker_charges,nonsmoker_charges,alternative = "greater",conf.level = 0.95)
+```
+
+>>Since p-value is less than 0.05 , I can conclude that the variances are different and we should do a t-test with different variances.
+
+
+>>Null hypothesis (H₀): μ1 = μ2 (no difference in average charges)
+
+>>Alternative hypothesis (H₁): μ1 > μ2 (smokers have higher average charges)
+
+```{r}
+
+
+#one-sided t-test
+t.test(smoker_charges, nonsmoker_charges, alternative = "greater",conf.level = .95,var.equal = FALSE)
+```
+>The p-value is less than 0.05 and from this I have rejected the null hypothesis(there is no difference in the average charges). 
+
+
+```{r}
+library(ggplot2)
+ggplot(insurance, aes(x = smoker, y = charges, fill = smoker)) +
+  geom_boxplot(alpha = 0.6, outlier.color = "red") +
+  stat_summary(fun = mean, geom = "point", shape = 20, size = 4, color = "black", fill = "black") +
+  labs(
+    title = "Comparison of Insurance Charges by Smoking Status",
+    x = "Smoker",
+    y = "Charges ($)",
+    fill = "Smoker Status"
+  ) +
+  scale_fill_manual(values = c("no" = "skyblue", "yes" = "tomato")) +
+  theme_minimal()
+```
+>From the ggplot above, it clearly shows that the people who smoke have a higher median insurane charges than people who dont smoke.
+
+```{r}
+ggplot(insurance, aes(x = age_group, y = charges)) +
+  geom_boxplot(fill = "green", color = "black") +
+  labs(title = "Boxplot of Charges by Age Group",
+       x = "Age Group",
+       y = "Charges") +
+  theme_minimal()
+```
+
+
+```{r}
+
+alpha = 0.05
+insurance_alpha = qt(1-alpha/2,1337)
+insurance_alpha
+
+```
+
+
+
+
+>Anova Testing
+
+>NUll Hypothesis H0 = Average insurance cost are equal across the BMI categories
+
+>Alternate hypothessis H1 -> Atleast one BMI category has a significant different insurance charge.
+
+```{r}
+
+
+bmi_anova <- aov(charges ~ bmi_category, data=insurance)
+
+
+summary(bmi_anova)
+
+table(insurance$bmi_category)
+
+```
+>>Since the p-value is less than the sigificance level of 0.05 , we reject the null hypothesis.
+
+
+```{r}
+library(ggplot2)
+ggplot(insurance, aes(x=bmi_category, y=charges, fill=bmi_category)) +
+  geom_boxplot(alpha=0.7) +
+  stat_summary(fun=mean, geom="point", shape=23, size=3, color="black") +
+  labs(title="Medical Charges by BMI Category",
+       x="BMI Category",
+       y="Charges ($)") +
+  scale_fill_brewer(palette="Set2") +
+  theme_minimal()
+```
+
+
+
+>>Linear Regression
+
+>> We have compared linear regression by comapring with smoker , bmi and smoker plus the bmi category seperately.
+
+
+```{r}
+insurancelmsmoking = lm(charges~smoker,data = insurance)
+summary(insurancelmsmoking)
+
+
+insurancelmbmi = lm(charges~bmi , data = insurance)
+summary(insurancelmbmi)
+
+
+#plot(insurance$bmi,insurance$charges)
+#abline(insurancelmbmi,col="red")
+
+lm1 = lm(charges~smoker+bmi_category , data = insurance)
+summary(lm1)
+
+lm2 = lm(charges~age_group,data = insurance)
+summary(lm2)
+
+
+```
+
+
+
+
+>>Multiple Linear Regression
+
+```{r}
+
+# Splitting the data into 80% training and 20% testing
+
+i = sample(2,nrow(insurance), replace = TRUE,prob = c(0.8,0.2) )
+insuranceTraining = insurance[i==1,]
+insuranceTest = insurance[i==2,]
+
+
+#pairs(insuranceTraining[,1:7],lower.panel = NULL)
+```
+
+>>Full Model
+
+```{r}
+fullModel = lm(charges~., data = insuranceTraining[,1:7])
+summary(fullModel)
+```
+
+
+
+
+```{r}
+
+#Predicting the fullModel with insuranceTest
+
+
+library(MLmetrics)
+ypred <- predict(fullModel,insuranceTest)
+summary(ypred)
+# Evaluate the model
+fullModel_MAE = MAE(ypred, insuranceTest$charges)
+fullModel_MSE = MSE(ypred, insuranceTest$charges)
+  
+#mean((ypred - insuranceTest$charges)^2)
+#rmse <- sqrt(mse)
+#cat("\nRoot Mean Squared Error (RMSE):", rmse, "\n")
+cat("\n MAE is : ",fullModel_MAE)
+cat("\n MSE is : ",fullModel_MSE)
+#rmse = sqrt(fullModel_MSE)
+
+
+
+#rmse
+
+  
+```
+
+
+```{r}
+#par(mfrow = c(2,2))
+#plot(fitlm)
+```
+
+
+>>Forward Stepwise Model
+
+
+```{r}
+
+
+intercept_only = lm(charges~1, data = insuranceTraining)
+
+all = lm(charges~. , data = insuranceTraining[,1:7])
+
+forward = stepAIC(intercept_only,direction = 'forward',scope = formula(all))
+
+```
+```{r}
+# view results of forward stepwise regression
+forward$anova
+```
+```{r}
+# view final model
+summary(forward)
+```
+
+
+
+
+```{r}
+#Prediction using the forward stepwise model
+
+library(MLmetrics)
+ypred_forward <-predict(object=forward,newdata = insuranceTest[,1:7])
+summary(ypred_forward)
+
+forward_MAE=MAE(ypred_forward,insuranceTest$charges)
+forward_MSE=MSE(ypred_forward,insuranceTest$charges)
+
+cat("\n MAE is : ",forward_MAE)
+cat("\n MSE is : ",forward_MSE)
+```
+
+>> Backward Stepwise 
+
+```{r}
+backward = stepAIC(all,direction = 'backward')
+
+```
+```{r}
+# view results of backward stepwise regression
+backward$anova
+```
+```{r}
+summary(backward)
+```
+
+
+
+#Prediction using backward
+
+```{r}
+ypred_backward <-predict(object = backward, newdata = insuranceTest[])
+summary(ypred_backward)
+MAE(ypred_backward,insuranceTest$charges)
+MSE(ypred_backward,insuranceTest$charges)
+```
+```{r}
+summary(fullModel)
+summary(forward)
+summary(backward)
+```
+
+
+
+>>Random Forest
+
+
+```{r}
+
+library(randomForest)
+rf_model <- randomForest(charges ~ ., data = insuranceTraining)
+predictions <- predict(rf_model, newdata = insuranceTest)
+sqrt(mean((predictions - insuranceTest$charges)^2))
+
+```
+
+```{r}
+plot(insuranceTest$charges, predictions,
+     xlab = "Actual Charges",
+     ylab = "Predicted Charges",
+     main = "Actual vs Predicted (Random Forest)",
+     col = "blue", pch = 16)
+abline(0, 1, col = "red")
+```
+
+
+>>Xg Boost
+
+```{r}
+# Install and load necessary package
+
+library(xgboost)
+
+# Prepare the data for XGBoost
+train_matrix <- data.matrix(insuranceTraining[, -which(names(insuranceTraining) == "charges")])  # Exclude target variable
+test_matrix <- data.matrix(insuranceTest[, -which(names(insuranceTest) == "charges")])
+
+train_labels <- insuranceTraining$charges
+test_labels <- insuranceTest$charges
+
+# Convert data into DMatrix format
+dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+dtest <- xgb.DMatrix(data = test_matrix, label = test_labels)
+
+# Set parameters for the XGBoost model
+params <- list(
+  objective = "reg:squarederror", # Regression task
+  booster = "gbtree", # Tree booster
+  eta = 0.1, # Learning rate
+  max_depth = 6, # Maximum depth of trees
+  colsample_bytree = 0.8, # Fraction of features to consider per tree
+  subsample = 0.8 # Fraction of samples to use per tree
+)
+
+# Train the XGBoost model
+xgb_model <- xgb.train(params = params, data = dtrain, nrounds = 100)
+
+# Make predictions on the test set
+predictions_xgb <- predict(xgb_model, newdata = dtest)
+
+# Evaluate the model with RMSE
+mse_xgb <- mean((predictions_xgb - test_labels)^2)
+rmse_xgb <- sqrt(mse_xgb)
+cat("\nRoot Mean Squared Error (RMSE) for XGBoost:", rmse_xgb, "\n")
+
+# Plot Actual vs Predicted values
+library(ggplot2)
+results <- data.frame(Actual = test_labels, Predicted = predictions_xgb)
+ggplot(results, aes(x = Actual, y = Predicted)) +
+  geom_point(color = 'blue') +
+  geom_abline(intercept = 0, slope = 1, color = 'red', linetype = "dashed") +
+  labs(title = "Actual vs Predicted (XGBoost)", x = "Actual Values", y = "Predicted Values") +
+  theme_minimal()
+
+```
+
